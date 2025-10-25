@@ -2,22 +2,18 @@
 title: "Assignment 3"
 author: "Beining Niu"
 subtitle: "Due at 11:59pm on October 14."
-format:
-  pdf:
-    code-overflow: wrap     
-    include-in-header:
-      text: |
-        \usepackage{fvextra}    
-        \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,commandchars=\\\{\}}
+format: pdf
 ---
 
 
 You may work in pairs or individually for this assignment. Make sure you join a group in Canvas if you are working in pairs. Turn in this assignment as an HTML or PDF file to ELMS. Make sure to include the R Markdown or Quarto file that was used to generate it. Include the GitHub link for the repository containing these files.
 
 ```{r}
-library(xml2)
-library(rvest)
 library(tidyverse)
+library(tidytext)
+library(dplyr)
+library(readr)
+library(stringr)
 ```
 
 ## Web Scraping
@@ -193,6 +189,7 @@ get_hist_pop <- function(slug){
 }
 
 wide_base <- hist_tbl %>% rename(`Grand Boulevard` = Population)
+wide_base <- subset(wide_base, !(Year %in% c(1910, 1920)))
 
 for (slug in east_slugs) {
   df_i <- get_hist_pop(slug)
@@ -205,6 +202,18 @@ for (slug in east_slugs) {
   wide_base <- cbind(wide_base, df_i[, 2, drop = FALSE])
 }
 
+wide_base <- wide_base[order(wide_base$Year), ]
+pct_cols <- setdiff(names(wide_base), "Year")
+
+wide_base <- wide_base %>%
+  arrange(Year) %>%
+  dplyr::mutate(
+    dplyr::across(
+      dplyr::all_of(pct_cols),
+      ~ ( . - dplyr::lag(.) ) / dplyr::lag(.) * 100,
+      .names = "{.col}_pct_change"
+    )
+  )
 wide_base
 ```
 
@@ -271,7 +280,7 @@ tokens <- descriptions %>%
   unnest_tokens(word, text) %>%
   filter(str_detect(word, "^[a-z']+$")) %>%   
   anti_join(stop_words, by = "word")         
-extra_stops <- tibble(word = c("chicago","hyde","park","kenwood","boulevard","grand","oakland"))
+extra_stops <- tibble(word = c("kenwood","boulevard","grand","oakland"))
 tokens <- tokens %>% anti_join(extra_stops, by = "word")
 
 top_overall <- tokens %>%
